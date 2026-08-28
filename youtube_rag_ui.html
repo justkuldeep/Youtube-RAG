@@ -1,0 +1,1782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YouTube RAG Agent</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #f5f8fc;
+      --surface: #ffffff;
+      --surface-soft: #f8fbff;
+      --surface-blue: #eff6ff;
+      --border: #e5edf7;
+      --border-blue: #bfdbfe;
+
+      --text: #0f172a;
+      --text-2: #334155;
+      --muted: #64748b;
+      --light: #94a3b8;
+
+      --blue: #2563eb;
+      --blue-2: #3b82f6;
+      --blue-dark: #1d4ed8;
+
+      --violet: #7c3aed;
+      --green: #10b981;
+
+      --shadow-sm: 0 4px 18px rgba(15, 23, 42, .045);
+      --shadow-md: 0 18px 45px rgba(15, 23, 42, .07);
+
+      --radius-xl: 22px;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --radius-sm: 9px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 8% 5%, rgba(59, 130, 246, .08), transparent 28%),
+        radial-gradient(circle at 92% 92%, rgba(124, 58, 237, .055), transparent 28%),
+        var(--bg);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+    }
+
+    .app-shell {
+      width: min(1500px, calc(100vw - 42px));
+      min-height: calc(100vh - 42px);
+      margin: 21px auto;
+      background: rgba(255, 255, 255, .72);
+      border: 1px solid rgba(226, 232, 240, .9);
+      border-radius: 26px;
+      box-shadow: var(--shadow-md);
+      backdrop-filter: blur(20px);
+      overflow: hidden;
+    }
+
+    /* =========================
+       TOP BAR
+    ========================== */
+
+    .topbar {
+      height: 76px;
+      padding: 0 26px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255, 255, 255, .9);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+    }
+
+    .youtube-mark {
+      width: 38px;
+      height: 27px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      color: white;
+      background: #ff0000;
+      box-shadow: 0 5px 13px rgba(255, 0, 0, .17);
+      position: relative;
+    }
+
+    .youtube-mark::after {
+      content: "";
+      width: 0;
+      height: 0;
+      border-top: 5px solid transparent;
+      border-bottom: 5px solid transparent;
+      border-left: 8px solid white;
+      margin-left: 2px;
+    }
+
+    .brand-name {
+      font-family: "Plus Jakarta Sans", sans-serif;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -.35px;
+    }
+
+    .brand-name span {
+      color: var(--blue);
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .new-chat-btn {
+      height: 40px;
+      padding: 0 17px;
+      border: 1px solid var(--blue-2);
+      color: var(--blue);
+      background: white;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: .2s ease;
+    }
+
+    .new-chat-btn:hover {
+      background: var(--surface-blue);
+      transform: translateY(-1px);
+    }
+
+    .icon-btn {
+      width: 40px;
+      height: 40px;
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      background: white;
+      cursor: pointer;
+      color: var(--text-2);
+      font-size: 17px;
+      transition: .2s ease;
+    }
+
+    .icon-btn:hover {
+      border-color: var(--border-blue);
+      color: var(--blue);
+    }
+
+    .avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+      color: white;
+      font-size: 14px;
+      font-weight: 800;
+      position: relative;
+      box-shadow: 0 5px 14px rgba(124, 58, 237, .18);
+    }
+
+    .avatar::after {
+      content: "";
+      position: absolute;
+      right: 1px;
+      bottom: 1px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      border: 2px solid white;
+    }
+
+    /* =========================
+       MAIN LAYOUT
+    ========================== */
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(420px, .92fr);
+      min-height: calc(100vh - 119px);
+    }
+
+    .left-column {
+      min-width: 0;
+      padding: 22px;
+      border-right: 1px solid var(--border);
+      overflow: auto;
+    }
+
+    .right-column {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      background: rgba(255, 255, 255, .62);
+    }
+
+    /* =========================
+       VIDEO
+    ========================== */
+
+    .video-card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 13px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .video-wrap {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      border-radius: 11px;
+      overflow: hidden;
+      background: #07101d;
+    }
+
+    .video-wrap iframe {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border: 0;
+    }
+
+    .rag-badge {
+      position: absolute;
+      top: 13px;
+      left: 13px;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 11px;
+      color: white;
+      background: rgba(15, 23, 42, .75);
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 9px;
+      font-size: 11px;
+      font-weight: 700;
+      backdrop-filter: blur(8px);
+      pointer-events: none;
+    }
+
+    .rag-badge span {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59,130,246,.18);
+    }
+
+    .video-heading {
+      margin-top: 15px;
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: flex-start;
+    }
+
+    .video-title {
+      font-family: "Plus Jakarta Sans", sans-serif;
+      font-size: 18px;
+      line-height: 1.35;
+      font-weight: 800;
+      letter-spacing: -.45px;
+    }
+
+    .channel-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-top: 9px;
+    }
+
+    .channel-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: white;
+      background: linear-gradient(135deg, #475569, #0f172a);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .channel-name {
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .channel-meta {
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 2px;
+    }
+
+    .subscribe {
+      margin-left: 5px;
+      padding: 7px 12px;
+      border-radius: 8px;
+      color: white;
+      background: #111827;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .video-actions {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .video-action {
+      height: 34px;
+      padding: 0 11px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: white;
+      color: var(--text-2);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .video-action:hover {
+      background: var(--surface-blue);
+      border-color: var(--border-blue);
+      color: var(--blue);
+    }
+
+    /* =========================
+       INFO CARDS
+    ========================== */
+
+    .info-grid {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 13px;
+    }
+
+    .info-card {
+      min-height: 152px;
+      padding: 16px;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .info-card h3 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    .info-icon {
+      width: 21px;
+      height: 21px;
+      display: grid;
+      place-items: center;
+      border-radius: 6px;
+      color: var(--blue);
+      background: var(--surface-blue);
+      font-size: 11px;
+    }
+
+    .info-card p,
+    .info-card li {
+      color: var(--text-2);
+      font-size: 11px;
+      line-height: 1.65;
+    }
+
+    .info-card ul {
+      padding-left: 16px;
+    }
+
+    .info-link {
+      display: inline-block;
+      margin-top: 8px;
+      color: var(--blue);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* =========================
+       CHAPTERS
+    ========================== */
+
+    .chapters-header {
+      margin: 18px 3px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .chapters-header h3 {
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .chapters-header button {
+      background: transparent;
+      color: var(--blue);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .chapters {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(105px, 1fr));
+      gap: 10px;
+    }
+
+    .chapter {
+      text-align: left;
+      background: transparent;
+      cursor: pointer;
+      min-width: 0;
+    }
+
+    .chapter-thumb {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: linear-gradient(135deg, #dbeafe, #cbd5e1);
+    }
+
+    .chapter-thumb::after {
+      content: "▶";
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: white;
+      background: rgba(15,23,42,.16);
+      opacity: 0;
+      transition: .2s;
+      font-size: 14px;
+    }
+
+    .chapter:hover .chapter-thumb::after {
+      opacity: 1;
+    }
+
+    .chapter-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .chapter.active .chapter-thumb {
+      border: 2px solid var(--blue);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.08);
+    }
+
+    .chapter-time {
+      margin-top: 6px;
+      color: var(--text-2);
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .chapter-name {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.3;
+    }
+
+    /* =========================
+       CHAT
+    ========================== */
+
+    .chat-head {
+      min-height: 72px;
+      padding: 17px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,.86);
+    }
+
+    .assistant-identity {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .assistant-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      color: var(--violet);
+      background: #f3e8ff;
+      font-size: 17px;
+    }
+
+    .chat-title {
+      font-family: "Plus Jakarta Sans", sans-serif;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .chat-subtitle {
+      color: var(--muted);
+      font-size: 10px;
+      margin-top: 2px;
+    }
+
+    .chat-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #047857;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .chat-status::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 22px;
+      scroll-behavior: smooth;
+    }
+
+    .messages::-webkit-scrollbar,
+    .left-column::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .messages::-webkit-scrollbar-thumb,
+    .left-column::-webkit-scrollbar-thumb {
+      background: #dbe4ef;
+      border-radius: 10px;
+    }
+
+    .message {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 18px;
+      max-width: 91%;
+    }
+
+    .message.user {
+      margin-left: auto;
+      align-items: flex-end;
+    }
+
+    .message.assistant {
+      margin-right: auto;
+    }
+
+    .user-bubble {
+      padding: 12px 15px;
+      color: white;
+      background: linear-gradient(135deg, #2f7bf5, #2563eb);
+      border-radius: 14px 14px 4px 14px;
+      box-shadow: 0 8px 18px rgba(37,99,235,.13);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .user-meta {
+      margin-top: 5px;
+      color: var(--light);
+      font-size: 9px;
+    }
+
+    .assistant-row {
+      display: flex;
+      gap: 9px;
+      align-items: flex-start;
+    }
+
+    .mini-ai {
+      width: 30px;
+      height: 30px;
+      flex: 0 0 30px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: #f3e8ff;
+      color: var(--violet);
+      font-size: 14px;
+    }
+
+    .assistant-card {
+      min-width: 0;
+      padding: 14px;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 14px 14px 14px 4px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .assistant-label {
+      font-size: 10px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .assistant-markdown {
+      color: var(--text-2);
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    .assistant-markdown p {
+      margin-bottom: 9px;
+    }
+
+    .assistant-markdown p:last-child {
+      margin-bottom: 0;
+    }
+
+    .assistant-markdown strong {
+      color: var(--text);
+    }
+
+    .assistant-markdown ul,
+    .assistant-markdown ol {
+      padding-left: 18px;
+      margin: 7px 0;
+    }
+
+    .assistant-markdown li {
+      margin-bottom: 4px;
+    }
+
+    .key-points {
+      margin-top: 12px;
+      padding: 12px;
+      border: 1px solid #dbeafe;
+      border-radius: 11px;
+      background: #f7fbff;
+    }
+
+    .key-points-title {
+      margin-bottom: 7px;
+      color: var(--blue);
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .key-points ul {
+      padding-left: 16px;
+      color: var(--text-2);
+      font-size: 10.5px;
+      line-height: 1.6;
+    }
+
+    /* =========================
+       SOURCES
+    ========================== */
+
+    .sources-box {
+      margin-top: 12px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      background: white;
+    }
+
+    .sources-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 9px;
+    }
+
+    .sources-head strong {
+      font-size: 10px;
+    }
+
+    .sources-head button {
+      background: transparent;
+      color: var(--blue);
+      font-size: 9px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .source-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+    }
+
+    .source-btn {
+      min-width: 0;
+      padding: 8px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      text-align: left;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fbfdff;
+      cursor: pointer;
+      transition: .2s ease;
+    }
+
+    .source-btn:hover {
+      border-color: var(--border-blue);
+      background: var(--surface-blue);
+    }
+
+    .source-play {
+      width: 19px;
+      height: 19px;
+      flex: 0 0 19px;
+      display: grid;
+      place-items: center;
+      border-radius: 6px;
+      color: var(--blue);
+      background: #eaf2ff;
+      font-size: 8px;
+    }
+
+    .source-time {
+      color: var(--text-2);
+      font-size: 9px;
+      font-weight: 800;
+    }
+
+    .source-name {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 8.5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .jump-btn {
+      margin-top: 10px;
+      padding: 8px 10px;
+      border: 1px solid var(--border-blue);
+      border-radius: 8px;
+      color: var(--blue);
+      background: white;
+      font-size: 9px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .jump-btn:hover {
+      background: var(--surface-blue);
+    }
+
+    /* =========================
+       COMPOSER
+    ========================== */
+
+    .composer {
+      padding: 14px 20px 17px;
+      border-top: 1px solid var(--border);
+      background: rgba(255,255,255,.92);
+    }
+
+    .suggestions {
+      display: flex;
+      gap: 7px;
+      margin-bottom: 9px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .suggestions::-webkit-scrollbar {
+      display: none;
+    }
+
+    .suggestion {
+      flex: 0 0 auto;
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--text-2);
+      background: #f8fafc;
+      font-size: 9px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: .2s;
+    }
+
+    .suggestion:hover {
+      color: var(--blue);
+      background: var(--surface-blue);
+      border-color: var(--border-blue);
+    }
+
+    .input-wrap {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      padding: 8px 8px 8px 13px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: #fbfdff;
+      transition: .2s ease;
+    }
+
+    .input-wrap:focus-within {
+      border-color: var(--blue-2);
+      background: white;
+      box-shadow: 0 0 0 3px rgba(37,99,235,.08);
+    }
+
+    .textarea {
+      flex: 1;
+      min-height: 30px;
+      max-height: 100px;
+      padding: 4px 0;
+      resize: none;
+      outline: none;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .textarea::placeholder {
+      color: var(--light);
+    }
+
+    .attach {
+      width: 29px;
+      height: 29px;
+      display: grid;
+      place-items: center;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .attach:hover {
+      color: var(--blue);
+      background: var(--surface-blue);
+    }
+
+    .send-btn {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border-radius: 9px;
+      color: white;
+      background: var(--blue);
+      cursor: pointer;
+      font-size: 16px;
+      transition: .2s ease;
+      flex: 0 0 38px;
+    }
+
+    .send-btn:hover:not(:disabled) {
+      background: var(--blue-dark);
+      transform: translateY(-1px);
+    }
+
+    .send-btn:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+
+    .composer-hint {
+      margin-top: 7px;
+      text-align: center;
+      color: var(--light);
+      font-size: 8.5px;
+    }
+
+    .disclaimer {
+      padding: 0 20px 12px;
+      color: #a0aec0;
+      text-align: center;
+      font-size: 8.5px;
+      background: rgba(255,255,255,.92);
+    }
+
+    /* =========================
+       MARKDOWN / CODE
+    ========================== */
+
+    .assistant-markdown code:not(pre code) {
+      padding: 2px 5px;
+      border-radius: 5px;
+      color: #1e3a8a;
+      background: #dbeafe;
+      font-family: Consolas, monospace;
+      font-size: .9em;
+    }
+
+    .code-wrapper {
+      margin: 10px 0;
+      overflow: hidden;
+      border: 1px solid #1e293b;
+      border-radius: 9px;
+      background: #0f172a;
+    }
+
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 9px;
+      color: #94a3b8;
+      background: #111827;
+      font-size: 8px;
+      font-weight: 700;
+    }
+
+    .copy-code-btn {
+      padding: 4px 8px;
+      border-radius: 5px;
+      color: white;
+      background: #2563eb;
+      cursor: pointer;
+      font-size: 8px;
+      font-weight: 700;
+    }
+
+    .code-wrapper pre {
+      margin: 0;
+      padding: 12px;
+      overflow-x: auto;
+    }
+
+    .code-wrapper pre code {
+      color: #e2e8f0;
+      font-family: Consolas, monospace;
+      font-size: 9px;
+      line-height: 1.6;
+    }
+
+    .typing {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-height: 22px;
+    }
+
+    .typing span {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #94a3b8;
+      animation: bounce 1.2s infinite ease-in-out;
+    }
+
+    .typing span:nth-child(2) { animation-delay: .15s; }
+    .typing span:nth-child(3) { animation-delay: .3s; }
+
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: .4; }
+      30% { transform: translateY(-4px); opacity: 1; }
+    }
+
+    /* =========================
+       TOAST
+    ========================== */
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      z-index: 100;
+      transform: translate(-50%, 20px);
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text-2);
+      background: white;
+      box-shadow: var(--shadow-md);
+      font-size: 11px;
+      font-weight: 600;
+      opacity: 0;
+      pointer-events: none;
+      transition: .25s ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    /* =========================
+       RESPONSIVE
+    ========================== */
+
+    @media (max-width: 1180px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .left-column {
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .right-column {
+        min-height: 700px;
+      }
+
+      .chapters {
+        grid-template-columns: repeat(5, minmax(90px, 1fr));
+      }
+    }
+
+    @media (max-width: 720px) {
+      .app-shell {
+        width: 100%;
+        min-height: 100vh;
+        margin: 0;
+        border-radius: 0;
+      }
+
+      .topbar {
+        padding: 0 15px;
+      }
+
+      .brand-name {
+        font-size: 14px;
+      }
+
+      .new-chat-btn {
+        padding: 0 11px;
+      }
+
+      .left-column {
+        padding: 13px;
+      }
+
+      .info-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .video-heading {
+        flex-direction: column;
+      }
+
+      .video-actions {
+        width: 100%;
+      }
+
+      .chapters {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .right-column {
+        min-height: 650px;
+      }
+
+      .message {
+        max-width: 96%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app-shell">
+
+    <!-- TOP NAVIGATION -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="youtube-mark"></div>
+        <div class="brand-name">YouTube <span>RAG</span> Agent</div>
+      </div>
+
+      <div class="top-actions">
+        <button class="new-chat-btn" id="newChatBtn">＋ New Chat</button>
+        <button class="icon-btn" id="themeBtn" title="Toggle theme">☼</button>
+        <div class="avatar" title="Profile">K</div>
+      </div>
+    </header>
+
+    <main class="workspace">
+
+      <!-- LEFT: VIDEO -->
+      <section class="left-column">
+
+        <div class="video-card">
+
+          <div class="video-wrap">
+            <div class="rag-badge">
+              <span></span>
+              RAG Online
+            </div>
+
+            <iframe
+              id="youtubePlayer"
+              src="https://www.youtube.com/embed/GDm_uH6VxPY?enablejsapi=1&rel=0"
+              title="AI agent design patterns"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowfullscreen>
+            </iframe>
+          </div>
+
+          <div class="video-heading">
+            <div>
+              <h1 class="video-title">AI agent design patterns</h1>
+
+              <div class="channel-row">
+                <div class="channel-avatar" id="channelAvatar" aria-label="Google Cloud Tech logo">☁️</div>
+
+                <div>
+                  <div class="channel-name" id="channelName">Google Cloud Tech ✓</div>
+                  <div class="channel-meta" id="channelSubscribers">1.44M subscribers</div>
+                </div>
+
+                <button class="subscribe" id="subscribeBtn">Subscribe</button>
+              </div>
+            </div>
+
+            <div class="video-actions">
+              <button class="video-action" onclick="showToast('Liked')">♡ 2K</button>
+              <button class="video-action" onclick="showToast('Share link copied')">↗ Share</button>
+              <button class="video-action" onclick="showToast('More options')">•••</button>
+            </div>
+          </div>
+
+          <!-- VIDEO SUMMARY + TOPICS -->
+          <div class="info-grid">
+
+            <article class="info-card">
+              <h3>
+                <span class="info-icon">▣</span>
+                Video Summary
+              </h3>
+
+              <p>
+                This video explains AI Agent Design Patterns with real-world examples.
+                It covers different patterns, use cases, advantages, and best practices.
+              </p>
+
+              <span class="info-link" onclick="showToast('Full summary coming soon')">
+                Read more
+              </span>
+            </article>
+
+            <article class="info-card">
+              <h3>
+                <span class="info-icon">▤</span>
+                Key Topics
+              </h3>
+
+              <ul>
+                <li>What is an AI Agent?</li>
+                <li>Types of Agent Design Patterns</li>
+                <li>Sequential, Parallel & Hybrid Agents</li>
+                <li>When to use which pattern?</li>
+              </ul>
+
+              <span class="info-link" onclick="showToast('Showing all topics')">
+                View all topics
+              </span>
+            </article>
+
+          </div>
+
+          <!-- CHAPTERS -->
+          <div class="chapters-header">
+            <h3>Chapters</h3>
+            <button onclick="showToast('All chapters are visible')">View all</button>
+          </div>
+
+          <div class="chapters">
+
+            <button class="chapter active" onclick="seekVideo(0)">
+              <div class="chapter-thumb">
+                <img src="https://img.youtube.com/vi/GDm_uH6VxPY/mqdefault.jpg" alt="Agent Design Patterns" />
+              </div>
+              <div class="chapter-time">0:00</div>
+              <div class="chapter-name">Intro</div>
+            </button>
+
+            <button class="chapter" onclick="seekVideo(61)">
+              <div class="chapter-thumb">
+                <img src="https://img.youtube.com/vi/GDm_uH6VxPY/mqdefault.jpg" alt="Sequential Agent Pattern" />
+              </div>
+              <div class="chapter-time">1:01</div>
+              <div class="chapter-name">Pattern 1: Single agent</div>
+            </button>
+
+            <button class="chapter" onclick="seekVideo(185)">
+              <div class="chapter-thumb">
+                <img src="https://img.youtube.com/vi/GDm_uH6VxPY/mqdefault.jpg" alt="Sequential Agent Pattern" />
+              </div>
+              <div class="chapter-time">3:05</div>
+              <div class="chapter-name">Pattern 2: Sequential agent</div>
+            </button>
+
+            <button class="chapter" onclick="seekVideo(321)">
+              <div class="chapter-thumb">
+                <img src="https://img.youtube.com/vi/GDm_uH6VxPY/mqdefault.jpg" alt="Parallel Agent Pattern" />
+              </div>
+              <div class="chapter-time">5:21</div>
+              <div class="chapter-name">Pattern 3: Parallel agent</div>
+            </button>
+
+            <button class="chapter" onclick="seekVideo(428)">
+              <div class="chapter-thumb">
+                <img src="https://img.youtube.com/vi/GDm_uH6VxPY/mqdefault.jpg" alt="Recap" />
+              </div>
+              <div class="chapter-time">7:08</div>
+              <div class="chapter-name">Recap</div>
+            </button>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT: AI CHAT -->
+      <section class="right-column">
+
+        <header class="chat-head">
+          <div class="assistant-identity">
+            <div class="assistant-icon">✦</div>
+            <div>
+              <div class="chat-title">YouTube RAG Assistant</div>
+              <div class="chat-subtitle">Answers grounded in the indexed video transcript</div>
+            </div>
+          </div>
+
+          <div class="chat-status">Online</div>
+        </header>
+
+        <div class="messages" id="messages"></div>
+
+        <!-- COMPOSER -->
+        <div class="composer">
+
+          <div class="suggestions">
+            <button class="suggestion" onclick="useSuggestion(this)">
+              What are the main agent patterns?
+            </button>
+
+            <button class="suggestion" onclick="useSuggestion(this)">
+              Explain sequential agents
+            </button>
+
+            <button class="suggestion" onclick="useSuggestion(this)">
+              What are the key takeaways?
+            </button>
+          </div>
+
+          <div class="input-wrap">
+            <button class="attach" title="Attach">⌕</button>
+
+            <textarea
+              class="textarea"
+              id="question"
+              rows="1"
+              placeholder="Ask anything about this video..."></textarea>
+
+            <button class="attach" title="AI tools">✣</button>
+
+            <button class="send-btn" id="sendButton" onclick="sendQuestion()" title="Send">
+              ➤
+            </button>
+          </div>
+
+          <div class="composer-hint">
+            Enter to send · Shift + Enter for a new line
+          </div>
+        </div>
+
+        <div class="disclaimer">
+          ◉ Responses are generated based on the video transcript and may not always be 100% accurate.
+        </div>
+
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // =========================================================
+    // CONFIG
+    // =========================================================
+
+    const API_URL = "http://127.0.0.1:8000/ask";
+    const VIDEO_ID = "GDm_uH6VxPY";
+
+    const messages = document.getElementById("messages");
+    const questionInput = document.getElementById("question");
+    const sendButton = document.getElementById("sendButton");
+    const newChatBtn = document.getElementById("newChatBtn");
+    const themeBtn = document.getElementById("themeBtn");
+
+    let player = null;
+
+    // =========================================================
+    // YOUTUBE VIDEO / CHANNEL METADATA
+    // =========================================================
+
+    async function loadChannelMetadata() {
+      // Metadata verified from the supplied YouTube reference:
+      // Google Cloud Tech — 1.44M subscribers.
+      const nameEl = document.getElementById("channelName");
+      const subscribersEl = document.getElementById("channelSubscribers");
+      const avatarEl = document.getElementById("channelAvatar");
+
+      nameEl.textContent = "Google Cloud Tech ✓";
+      subscribersEl.textContent = "1.44M subscribers";
+      avatarEl.textContent = "☁️";
+
+      document.getElementById("subscribeBtn").onclick = () => {
+        window.open(
+          "https://www.youtube.com/@googlecloudtech",
+          "_blank",
+          "noopener,noreferrer"
+        );
+      };
+    }
+
+
+    function getChannelQuery(channelUrl) {
+      if (!channelUrl) return "";
+
+      const channelMatch = channelUrl.match(/youtube\.com\/channel\/([A-Za-z0-9_-]+)/i);
+
+      if (channelMatch) {
+        return `id=${encodeURIComponent(channelMatch[1])}`;
+      }
+
+      const handleMatch = channelUrl.match(/youtube\.com\/@([^/?]+)/i);
+
+      if (handleMatch) {
+        return `forHandle=${encodeURIComponent(handleMatch[1])}`;
+      }
+
+      return "";
+    }
+
+    function getInitials(name) {
+      return name
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(word => word[0])
+        .join("")
+        .toUpperCase() || "YT";
+    }
+
+    function formatSubscriberCount(count) {
+      if (count >= 1000000000) return `${(count / 1000000000).toFixed(1).replace(/\.0$/, "")}B`;
+      if (count >= 1000000) return `${(count / 1000000).toFixed(1).replace(/\.0$/, "")}M`;
+      if (count >= 1000) return `${(count / 1000).toFixed(1).replace(/\.0$/, "")}K`;
+      return count.toLocaleString();
+    }
+
+    loadChannelMetadata();
+
+    // =========================================================
+    // YOUTUBE IFRAME API
+    // =========================================================
+
+    const ytScript = document.createElement("script");
+    ytScript.src = "https://www.youtube.com/iframe_api";
+    document.head.appendChild(ytScript);
+
+    window.onYouTubeIframeAPIReady = function () {
+      player = new YT.Player("youtubePlayer");
+    };
+
+    function seekVideo(seconds) {
+      if (player && typeof player.seekTo === "function") {
+        player.seekTo(seconds, true);
+        player.playVideo();
+      } else {
+        showToast("Video player is still loading...");
+      }
+    }
+
+    // =========================================================
+    // TOAST
+    // =========================================================
+
+    let toastTimer;
+
+    function showToast(text) {
+      const toast = document.getElementById("toast");
+
+      toast.textContent = text;
+      toast.classList.add("show");
+
+      clearTimeout(toastTimer);
+
+      toastTimer = setTimeout(() => {
+        toast.classList.remove("show");
+      }, 1800);
+    }
+
+    // =========================================================
+    // ADD USER MESSAGE
+    // =========================================================
+
+    function addUserMessage(text) {
+      const message = document.createElement("div");
+      message.className = "message user";
+
+      const bubble = document.createElement("div");
+      bubble.className = "user-bubble";
+      bubble.textContent = text;
+
+      const meta = document.createElement("div");
+      meta.className = "user-meta";
+      meta.textContent = "Just now ✓✓";
+
+      message.appendChild(bubble);
+      message.appendChild(meta);
+
+      messages.appendChild(message);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    // =========================================================
+    // ADD ASSISTANT MESSAGE
+    // =========================================================
+
+    function addAssistantMessage() {
+      const message = document.createElement("div");
+      message.className = "message assistant";
+
+      const row = document.createElement("div");
+      row.className = "assistant-row";
+
+      const icon = document.createElement("div");
+      icon.className = "mini-ai";
+      icon.textContent = "✦";
+
+      const card = document.createElement("div");
+      card.className = "assistant-card";
+
+      const label = document.createElement("div");
+      label.className = "assistant-label";
+      label.textContent = "YouTube RAG Assistant";
+
+      const bubble = document.createElement("div");
+      bubble.className = "assistant-markdown";
+
+      row.appendChild(icon);
+      row.appendChild(card);
+
+      card.appendChild(label);
+      card.appendChild(bubble);
+
+      message.appendChild(row);
+      messages.appendChild(message);
+
+      messages.scrollTop = messages.scrollHeight;
+
+      return bubble;
+    }
+
+    // =========================================================
+    // SEND QUESTION + STREAM RESPONSE
+    // =========================================================
+
+    async function sendQuestion() {
+      const question = questionInput.value.trim();
+
+      if (!question || sendButton.disabled) {
+        return;
+      }
+
+      addUserMessage(question);
+
+      questionInput.value = "";
+      questionInput.style.height = "auto";
+      sendButton.disabled = true;
+
+      const answerBubble = addAssistantMessage();
+
+      answerBubble.innerHTML = `
+        <div class="typing">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      `;
+
+      try {
+        const response = await fetch(API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            question: question
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server returned ${response.status}`);
+        }
+
+        if (!response.body) {
+          throw new Error("Backend did not return a streaming body.");
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+
+        let answer = "";
+
+        answerBubble.textContent = "";
+
+        while (true) {
+          const { value, done } = await reader.read();
+
+          if (done) {
+            break;
+          }
+
+          answer += decoder.decode(value, {
+            stream: true
+          });
+
+          answerBubble.textContent = answer;
+          messages.scrollTop = messages.scrollHeight;
+        }
+
+        answer += decoder.decode();
+
+        renderMarkdown(answerBubble, answer);
+        addTimestampSource(answerBubble, answer);
+
+        messages.scrollTop = messages.scrollHeight;
+
+      } catch (error) {
+        console.error("RAG Error:", error);
+
+        answerBubble.innerHTML = `
+          <p>
+            Sorry, I couldn't connect to the RAG backend.
+          </p>
+          <p>
+            Make sure your Python API server is running at
+            <strong>http://127.0.0.1:8000</strong>.
+          </p>
+        `;
+      } finally {
+        sendButton.disabled = false;
+        questionInput.focus();
+      }
+    }
+
+    // =========================================================
+    // MARKDOWN
+    // =========================================================
+
+    function renderMarkdown(element, markdown) {
+      if (typeof marked === "undefined") {
+        element.textContent = markdown;
+        return;
+      }
+
+      let html = marked.parse(markdown, {
+        gfm: true,
+        breaks: true
+      });
+
+      if (typeof DOMPurify !== "undefined") {
+        html = DOMPurify.sanitize(html);
+      }
+
+      element.innerHTML = html;
+
+      const codeBlocks = element.querySelectorAll("pre");
+
+      codeBlocks.forEach((pre) => {
+        const code = pre.querySelector("code");
+
+        if (!code) return;
+
+        let language = "code";
+
+        const match = (code.className || "").match(/language-([\w-]+)/);
+
+        if (match) {
+          language = match[1];
+        }
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "code-wrapper";
+
+        const header = document.createElement("div");
+        header.className = "code-header";
+
+        const languageLabel = document.createElement("span");
+        languageLabel.textContent = language;
+
+        const copyButton = document.createElement("button");
+        copyButton.className = "copy-code-btn";
+        copyButton.textContent = "Copy";
+        copyButton.type = "button";
+
+        copyButton.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(code.innerText);
+            copyButton.textContent = "Copied!";
+
+            setTimeout(() => {
+              copyButton.textContent = "Copy";
+            }, 1400);
+          } catch {
+            copyButton.textContent = "Failed";
+          }
+        });
+
+        header.appendChild(languageLabel);
+        header.appendChild(copyButton);
+
+        pre.parentNode.insertBefore(wrapper, pre);
+        wrapper.appendChild(header);
+        wrapper.appendChild(pre);
+      });
+    }
+
+    // =========================================================
+    // TIMESTAMP DETECTION
+    // Supports [02:33], [10:21], etc.
+    // =========================================================
+
+    function addTimestampSource(element, answer) {
+      const timestampRegex = /\[(\d{1,2}):(\d{2})\]/g;
+      const matches = [...answer.matchAll(timestampRegex)];
+
+      if (!matches.length) {
+        return;
+      }
+
+      const last = matches[matches.length - 1];
+
+      const minutes = parseInt(last[1], 10);
+      const seconds = parseInt(last[2], 10);
+      const totalSeconds = minutes * 60 + seconds;
+      const VIDEO_DURATION_SECONDS = 8 * 60 + 20;
+
+      if (totalSeconds > VIDEO_DURATION_SECONDS) {
+        return;
+      }
+
+      const button = document.createElement("button");
+      button.className = "jump-btn";
+      button.type = "button";
+      button.textContent = `↓ Jump to ${last[1]}:${last[2]} in video ↗`;
+
+      button.onclick = () => seekVideo(totalSeconds);
+
+      element.appendChild(button);
+    }
+
+    // =========================================================
+    // SUGGESTIONS
+    // =========================================================
+
+    function useSuggestion(button) {
+      questionInput.value = button.textContent.trim();
+      questionInput.focus();
+      sendQuestion();
+    }
+
+    // =========================================================
+    // ENTER TO SEND
+    // =========================================================
+
+    questionInput.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        sendQuestion();
+      }
+    });
+
+    // =========================================================
+    // AUTO RESIZE
+    // =========================================================
+
+    questionInput.addEventListener("input", function () {
+      this.style.height = "auto";
+      this.style.height = Math.min(this.scrollHeight, 100) + "px";
+    });
+
+    // =========================================================
+    // NEW CHAT
+    // =========================================================
+
+    newChatBtn.addEventListener("click", () => {
+      messages.innerHTML = `
+        <div class="message assistant">
+          <div class="assistant-row">
+            <div class="mini-ai">✦</div>
+            <div class="assistant-card">
+              <div class="assistant-label">YouTube RAG Assistant</div>
+              <div class="assistant-markdown">
+                <p>
+                  New chat started. Ask me anything about this video.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      showToast("New chat started");
+      questionInput.focus();
+    });
+
+    // =========================================================
+    // LIGHT THEME BUTTON
+    // Keeps the requested light design, but provides interaction.
+    // =========================================================
+
+    themeBtn.addEventListener("click", () => {
+      showToast("Light theme is active");
+    });
+  </script>
+</body>
+</html>
