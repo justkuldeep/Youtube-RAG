@@ -227,7 +227,7 @@ Question + Retrieved Context
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/Youtube-Rag.git
+git clone https://github.com/justkuldeep/Youtube-Rag.git
 cd Youtube-Rag
 ```
 
